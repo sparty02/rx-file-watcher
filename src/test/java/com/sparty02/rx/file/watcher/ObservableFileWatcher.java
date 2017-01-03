@@ -35,26 +35,17 @@ public class ObservableFileWatcher {
 			throw new IllegalArgumentException(String.format("Path (%s) must be a directory", watchPath));
 		}
 
-		// Observable<PathEvent> watchPathObservable =
-		// Observable.<PathEvent>create(subscriber -> {
-		// try {
-		// WatchKey key = watchPath.register(watchService, ENTRY_CREATE,
-		// ENTRY_MODIFY, ENTRY_DELETE);
-		// subscriber.add(Subscriptions.create(() -> key.cancel()));
-		// } catch (IOException e) {
-		// subscriber.onError(e);
-		// }
-		// });
+		return Observable.<PathEvent>create(subscriber -> {
+			try {
+				WatchKey key = watchPath.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
+				subscriber.add(Subscriptions.create(() -> key.cancel()));
 
-		WatchKey key;
-		try {
-			key = watchPath.register(watchService, ENTRY_CREATE, ENTRY_MODIFY, ENTRY_DELETE);
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
-
-		return watchObservable.share().filter(path -> path.getPath().getParent().equals(watchPath))
-				.doOnUnsubscribe(() -> key.cancel());
+				watchObservable.filter(pathEvent -> pathEvent.getPath().getParent().equals(watchPath))
+						.subscribe(pathEvent -> subscriber.onNext(pathEvent));
+			} catch (IOException e) {
+				subscriber.onError(e);
+			}
+		});
 	}
 
 	private Observable<PathEvent> create() {
@@ -87,7 +78,7 @@ public class ObservableFileWatcher {
 			}
 		});
 
-		return watchPathObservable;// .subscribeOn(Schedulers.io()).publish().refCount();
+		return watchPathObservable.share();// .subscribeOn(Schedulers.io()).publish().refCount();
 	}
 
 }
